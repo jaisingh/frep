@@ -8,6 +8,10 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
+
 	"github.com/BurntSushi/toml"
 	"github.com/go-yaml/yaml"
 	"github.com/subchen/go-cli"
@@ -23,12 +27,15 @@ var (
 
 // flags
 var (
-	EnvironList  []string
-	JsonStr      string
-	LoadFileList []string
-	Overwrite    bool
-	Dryrun       bool
-	Delims       string
+	EnvironList   []string
+	JsonStr       string
+	LoadFileList  []string
+	Overwrite     bool
+	Dryrun        bool
+	Delims        string
+	SecretManager bool
+	SmPrefix      string
+	AWSRegion     string
 )
 
 // create template context
@@ -95,6 +102,24 @@ func newTemplateVariables() map[string]interface{} {
 			v = v[1 : len(v)-1]
 		}
 		vars[kv[0]] = v
+	}
+
+	// --secretmanager
+	if SecretManager {
+		svc := secretsmanager.New(session.New(), &aws.Config{Region: aws.String(AWSRegion)})
+		keys, err := ListKeys(svc)
+
+		if err != nil {
+			panic(err)
+		}
+
+		for _, key := range keys {
+			value, e := GetSecretValue(svc, key)
+			if e != nil {
+				continue
+			}
+			vars[strings.TrimLeft(key, SmPrefix)] = value
+		}
 	}
 
 	return vars
@@ -196,6 +221,22 @@ func main() {
 			Usage:    "template tag delimiters",
 			DefValue: "{{:}}",
 			Value:    &Delims,
+		},
+		{
+			Name:  "secretmanager",
+			Usage: "enable AWS SecretManager",
+			Value: &SecretManager,
+		},
+		{
+			Name:  "sm-prefix",
+			Usage: "AWS SecretsManager Key Prefix",
+			Value: &SmPrefix,
+		},
+		{
+			Name:     "sm-region",
+			Usage:    "AWS region",
+			DefValue: "us-east-1",
+			Value:    &AWSRegion,
 		},
 	}
 
