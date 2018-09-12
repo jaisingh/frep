@@ -144,10 +144,13 @@ func templateExecute(t *template.Template, file string, ctx interface{}) {
 
 	var err error
 	var templateBytes []byte
+	var filePermissions os.FileMode = os.FileMode(int(0644))
 
 	if srcFile == "-" {
 		templateBytes, err = ioutil.ReadAll(os.Stdin)
 	} else {
+		info, _ := os.Stat(srcFile)
+		filePermissions = info.Mode()
 		templateBytes, err = ioutil.ReadFile(srcFile)
 	}
 	if err != nil {
@@ -178,6 +181,7 @@ func templateExecute(t *template.Template, file string, ctx interface{}) {
 	if err != nil {
 		panic(fmt.Errorf("render template error, caused:\n\n   %v\n", err))
 	}
+	dest.Chmod(filePermissions)
 }
 
 func main() {
